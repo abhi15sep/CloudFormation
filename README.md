@@ -7,13 +7,14 @@ Use CM tools such as Puppet, Ansible, or Chef to automate the installation of ba
 <h2>Deliverable:</h2>
 A cloudformation template that accepts user inputs as parameters where applicable ( for example, Admin password). This template should setup VPC, create subnets, launch a CM instance, pull the necessary code (modules, classes, recipes etc) from a GIT repo (or S3), and configure the web instance for basic Drupal or Wordpress setup.
 
-<h2>Description</h2>:
+<h2>Description:</h2>
 
 The final template for this solution is VPC_CHEF_WP_FINAL.json. All other templates were used to mock cloudformation stacks for QA purposes.
 
 The VPC_CHEF_WP_FINAL.json cloud formation template accomplished the following:
 
-Creates a vpc with the following resources:
+<li>
+<ul>Creates a vpc with the following resources:</ul>
 
     1 VPC with CIDR Block [10.250.0.0]
     2 Subnets (1 Private and 1 Public)
@@ -22,9 +23,9 @@ Creates a vpc with the following resources:
     1 NAT Gateways for Secure access to our private subnet
     1 Elastic IPS for the NAT Gateway
  
- Creates a Wordpress Installation and exits with a link to the installation via: <DNS/wordpress>. See the cloud formation Output section after creation.
+ <ul>Creates a Wordpress Installation and exits with a link to the installation via: `"DNS/wordpress"`. See the cloud formation Output section after creation.</ul>
  
- Installs Chef on the EC2 instance for managed DevOps.
+ <ul>Installs Chef on the EC2 instance for managed DevOps.</ul>
 
 <h2>Execution:</h2>
 
