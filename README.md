@@ -20,7 +20,10 @@ I removed this cookbook reference and researched possible solutions, but was sti
 <h2>Solution:</h2>
 With proper AWS Access ID and Keys enabled on the user's terminal. The cloudformation can be created with the following AWS CLI command:
 
-`aws cloudformation create-stack --stack-name VPCWPChef --template-url https://s3-us-west-1.amazonaws.com/rean-pats-bucket/VPC_CHEF_WP_FINAL.json --parameters ParameterKey=CIDRRange,ParameterValue=10.250.0.0 ParameterKey=DBName,ParameterValue=wordpressdb ParameterKey=DBPassword,ParameterValue=admin1234 ParameterKey=DBRootPassword,ParameterValue=admin1234 ParameterKey=DBUser,ParameterValue=admin ParameterKey=InstanceType,ParameterValue=t2.micro ParameterKey=KeyName,ParameterValue=patskey ParameterKey=SSHLocation,ParameterValue=0.0.0.0/0`
+```
+aws cloudformation create-stack --stack-name VPCWPChef --template-url https://s3-us-west-1.amazonaws.com/rean-pats-bucket/VPC_CHEF_WP_FINAL.json --parameters ParameterKey=CIDRRange,ParameterValue=10.250.0.0 ParameterKey=DBName,ParameterValue=wordpressdb ParameterKey=DBPassword,ParameterValue=admin1234 ParameterKey=DBRootPassword,ParameterValue=admin1234 ParameterKey=DBUser,ParameterValue=admin ParameterKey=InstanceType,ParameterValue=t2.micro ParameterKey=KeyName,ParameterValue=patskey ParameterKey=SSHLocation,ParameterValue=0.0.0.0/0
+
+```
 
 <h2>Template:</h2>
 The template is located in S3 under the bucket s3://rean-pats-bucket/VPC_CHEF_WP_FINAL.json
