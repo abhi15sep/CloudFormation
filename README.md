@@ -14,7 +14,7 @@ The final template for this solution is VPC_CHEF_WP_FINAL.json. All other templa
 The VPC_CHEF_WP_FINAL.json cloud formation template accomplished the following:
 
 <li>
-<ul>Creates a vpc with the following resources:</ul>
+<ul> 1. Creates a vpc with the following resources:</ul>
 
     1 VPC with CIDR Block [10.250.0.0]
     2 Subnets (1 Private and 1 Public)
@@ -23,10 +23,11 @@ The VPC_CHEF_WP_FINAL.json cloud formation template accomplished the following:
     1 NAT Gateways for Secure access to our private subnet
     1 Elastic IPS for the NAT Gateway
  
- <ul>Creates a Wordpress Installation and exits with a link to the installation via: `"DNS/wordpress"`. See the cloud formation Output section after creation.</ul>
+ <ul>2. Creates a Wordpress Installation and exits with a link to the installation via: `"DNS/wordpress"`. See the cloud formation Output section after creation.</ul>
  
- <ul>Installs Chef on the EC2 instance for managed DevOps.</ul>
+ <ul> 3. Installs Chef on the EC2 instance for managed DevOps.</ul>
 
+</li>
 <h2>Execution:</h2>
 
 Note: --I was unable to use Chef to automate the installation of WordPress; but still managed to install Chef and WordPress as seperate events. I am assuming the end goal was a Chef managed node with a WordPress installation. This was achieved; however I would still like to know which recipes one should leverage to automate the installation of WordPress.
