@@ -1,0 +1,441 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation Template VPCWordPessChef: This template creates a VPC, a public and private subnet, routetables, IGW, a Chef Managed EC2 Instance, and a WordPress Installation.",
+
+  "Parameters" : {
+      
+    "CIDRRange": {
+      "Description": "VPCCIDR Range (will be a /16 block)",
+      "Type": "String",
+      "Default": "10.250.0.0",
+      "AllowedValues": ["10.250.0.0"]
+    },
+
+    "KeyName": {
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "ConstraintDescription" : "must be the name of an existing EC2 KeyPair."
+    },
+
+    "InstanceType" : {
+      "Description" : "WebServer EC2 instance type",
+      "Type" : "String",
+      "Default" : "t2.micro",
+      "AllowedValues" : [ "t2.micro", "t2.small"]
+,
+      "ConstraintDescription" : "must be a either t.2micro or t2.small instance type."
+    },
+
+    "SSHLocation": {
+      "Description": "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "0.0.0.0/0",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+    },
+
+    "DBName" : {
+      "Default": "wordpressdb",
+      "Description" : "The WordPress database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters. Min length is 1 max length is 64 characters"
+    },
+
+    "DBUser" : {
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account username",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern" : "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription" : "must begin with a letter and contain only alphanumeric characters. Min length is 1 Max length is 16 characters"
+    },
+
+    "DBPassword" : {
+      "NoEcho": "true",
+      "Description" : "The WordPress database admin account password",
+      "Type": "String",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters.Min length is 8 Max length is 41 characters"
+    },
+
+    "DBRootPassword" : {
+      "NoEcho": "true",
+      "Description" : "MySQL root password",
+      "Type": "String",
+      "MinLength": "8",
+      "MaxLength": "41",
+      "AllowedPattern" : "[a-zA-Z0-9]*",
+      "ConstraintDescription" : "must contain only alphanumeric characters. Min length is 8 max is 41 characters"
+    }
+  },
+
+  "Mappings" : {
+    
+    "VPCRanges": {
+      "10.250.0.0": {
+        "PublicSubnetAZ1"   : "10.250.0.0/22",
+        "PrivateSubnetAZ1"  : "10.250.32.0/21"
+      }
+    },
+    "AWSInstanceType2Arch" : {
+      "t2.micro"    : { "Arch" : "HVM64"  },
+      "t2.small"    : { "Arch" : "HVM64"  }
+    },
+
+    "AWSInstanceType2NATArch" : {
+      "t2.micro"    : { "Arch" : "NATHVM64"  },
+      "t2.small"    : { "Arch" : "NATHVM64"  }
+    }
+,
+    "AWSRegionArch2AMI" : {
+      "us-west-2"        : {"PV64" : "ami-7f77b31f", "HVM64" : "ami-7172b611", "HVMG2" : "ami-60aa3700"},
+      "us-west-1"        : {"PV64" : "ami-a2490dc2", "HVM64" : "ami-31490d51", "HVMG2" : "ami-4b694d2b"}
+    }
+  },
+
+  "Resources" : {
+      "VPCBase": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": { "Fn::Join" : ["", [{ "Ref" : "CIDRRange" }, "/16"]] },
+        "EnableDnsSupport": "True",
+        "EnableDnsHostnames": "True",
+        "Tags": [
+          { "Key": "Name", "Value":    { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-VPC"]] } }
+        ]
+      }
+    },
+    "PublicNetAZ1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": { "Fn::Select": [ "0", { "Fn::GetAZs": { "Ref": "AWS::Region" } } ] },
+        "CidrBlock": { "Fn::FindInMap" : [ "VPCRanges", { "Ref": "CIDRRange"}, "PublicSubnetAZ1"] },
+        "MapPublicIpOnLaunch": "True",
+        "Tags": [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-PublicAZ1"]] } }
+        ],
+        "VpcId": { "Ref": "VPCBase" }
+      }
+    },
+    "PrivateNetAZ1": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "AvailabilityZone": { "Fn::Select": [ "0", { "Fn::GetAZs": { "Ref": "AWS::Region" } } ] },
+        "CidrBlock": { "Fn::FindInMap" : [ "VPCRanges", { "Ref": "CIDRRange"},  "PrivateSubnetAZ1" ] },
+        "MapPublicIpOnLaunch": "False",
+        "Tags": [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-PrivateAZ1"]] } },
+          { "Key": "Network", "Value": "private" }
+        ],
+        "VpcId": { "Ref": "VPCBase" }
+      }
+    },
+    "IGWBase" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "Properties" : {
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-IGW"]] } }
+        ]
+      }
+    },
+    "VGAIGWBase" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : { "Ref" : "IGWBase" },
+        "VpcId" : { "Ref" : "VPCBase" }
+      }
+    },
+    "RouteTablePublic" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPCBase" },
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-PublicRT"]] } }
+        ]
+      }
+    },
+    "RouteTablePrivateAZ1" : {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : { "Ref" : "VPCBase" },
+        "Tags" : [
+          { "Key": "Name", "Value": { "Fn::Join" : ["", [{ "Ref" : "AWS::StackName" }, "-PrivateAZ1RT"]] } }
+        ]
+      }
+    },
+    "RoutePublicDefault" : {
+      "DependsOn": [ "VGAIGWBase" ],
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RouteTablePublic" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "GatewayId" : { "Ref" : "IGWBase" }
+      }
+    },
+    "RouteAssociationPublicAZ1Default" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PublicNetAZ1"},
+        "RouteTableId" : { "Ref" : "RouteTablePublic" }
+      }
+    },
+    "RouteAssociationPrivateAZ1Default" : {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "SubnetId" : { "Ref" : "PrivateNetAZ1"},
+        "RouteTableId" : { "Ref" : "RouteTablePrivateAZ1" }
+      }
+    },
+    "NATAZ1" : {
+      "Type" : "AWS::EC2::NatGateway",
+      "DependsOn" : "VGAIGWBase",
+      "Properties" : {
+        "AllocationId" : { "Fn::GetAtt" : ["EIPNATAZ1", "AllocationId"]},
+        "SubnetId" : { "Ref" : "PublicNetAZ1"}
+      }
+    },
+    "EIPNATAZ1" : {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+        "Domain" : "vpc"
+      }
+    },
+    "NATAZ1Route" : {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "RouteTableId" : { "Ref" : "RouteTablePrivateAZ1" },
+        "DestinationCidrBlock" : "0.0.0.0/0",
+        "NatGatewayId" : { "Ref" : "NATAZ1" }
+      }
+    },
+    "WebServerSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access via port 80 locked down to the load balancer + SSH access",
+        "SecurityGroupIngress" : [
+          {"IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0"},
+          {"IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : { "Ref" : "SSHLocation"}}
+        ]
+      }
+    },
+
+    "WebServer": {
+      "Type" : "AWS::EC2::Instance",
+      "Metadata" : {
+        "AWS::CloudFormation::Init" : {
+          "configSets" : {
+            "wordpress_install" : ["install_cfn", "install_chefdk","install_chef", "install_wordpress", "configure_wordpress","run_chef" ]
+          },
+          "install_cfn" : {
+            "files": {
+              "/etc/cfn/cfn-hup.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[main]\n",
+                  "stack=", { "Ref": "AWS::StackId" }, "\n",
+                  "region=", { "Ref": "AWS::Region" }, "\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/etc/cfn/hooks.d/cfn-auto-reloader.conf": {
+                "content": { "Fn::Join": [ "", [
+                  "[cfn-auto-reloader-hook]\n",
+                  "triggers=post.update\n",
+                  "path=Resources.WebServer.Metadata.AWS::CloudFormation::Init\n",
+                  "action=/opt/aws/bin/cfn-init -v ",
+                          "         --stack ", { "Ref" : "AWS::StackName" },
+                          "         --resource WebServer ",
+                          "         --configsets wordpress_install ",
+                          "         --region ", { "Ref" : "AWS::Region" }, "\n"
+                ]]},          
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "cfn-hup" : { "enabled" : "true", "ensureRunning" : "true",
+                              "files" : ["/etc/cfn/cfn-hup.conf", "/etc/cfn/hooks.d/cfn-auto-reloader.conf"] }
+              }
+            }
+          },
+          "install_chefdk" : {
+            "packages" : {
+              "rpm" : {
+                "chefdk" : "https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chefdk-0.2.0-2.el6.x86_64.rpm"
+              }
+            }
+          },
+          "install_chef" : {
+            "sources" : {
+              "/var/chef/chef-repo" : "http://github.com/opscode/chef-repo/tarball/master"
+            },
+            "files" : {
+              "/tmp/install.sh" : {
+                "source" : "https://www.opscode.com/chef/install.sh",
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/.chef/knife.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+              "/var/chef/chef-repo/.chef/client.rb" : {
+                "content" : { "Fn::Join": [ "", [
+                  "cookbook_path [ '/var/chef/chef-repo/cookbooks' ]\n",
+                  "node_path [ '/var/chef/chef-repo/nodes' ]\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "commands" : {
+              "01_make_chef_readable" : {
+                "command" : "chmod +rx /var/chef"
+              },
+              "02_install_chef" : {
+                "command" : "bash /tmp/install.sh",
+                "cwd"  : "/var/chef"
+              },
+              "03_create_node_list" : {
+                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              }
+            }
+          },
+          "install_wordpress" : {
+            "packages" : {
+              "yum" : {
+                "php"          : [],
+                "php-mysql"    : [],
+                "mysql"        : [],
+                "mysql-server" : [],
+                "mysql-devel"  : [],
+                "mysql-libs"   : [],
+                "httpd"        : []
+              }
+            },
+            "sources" : {
+              "/var/www/html" : "http://wordpress.org/latest.tar.gz"
+            },
+            "files" : {
+              "/tmp/setup.mysql" : {
+                "content" : { "Fn::Join" : ["", [
+                  "CREATE DATABASE ", { "Ref" : "DBName" }, ";\n",
+                  "CREATE USER '", { "Ref" : "DBUser" }, "'@'localhost' IDENTIFIED BY '", { "Ref" : "DBPassword" }, "';\n",
+                  "GRANT ALL ON ", { "Ref" : "DBName" }, ".* TO '", { "Ref" : "DBUser" }, "'@'localhost';\n",
+                  "FLUSH PRIVILEGES;\n"
+                ]]},
+                "mode"  : "000400",
+                "owner" : "root",
+                "group" : "root"
+              },
+
+              "/tmp/create-wp-config" : {
+                "content" : { "Fn::Join" : [ "", [
+                  "#!/bin/bash -xe\n",
+                  "cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php\n",
+                  "sed -i \"s/'database_name_here'/'",{ "Ref" : "DBName" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'username_here'/'",{ "Ref" : "DBUser" }, "'/g\" wp-config.php\n",
+                  "sed -i \"s/'password_here'/'",{ "Ref" : "DBPassword" }, "'/g\" wp-config.php\n"
+                ]]},
+                "mode" : "000500",
+                "owner" : "root",
+                "group" : "root"
+              }
+            },
+            "services" : {
+              "sysvinit" : {
+                "httpd"  : { "enabled" : "true", "ensureRunning" : "true" },
+                "mysqld" : { "enabled" : "true", "ensureRunning" : "true" }
+              }
+            }
+          },
+          "configure_wordpress" : {
+            "commands" : {
+              "01_set_mysql_root_password" : {
+                "command" : { "Fn::Join" : ["", ["mysqladmin -u root password '", { "Ref" : "DBRootPassword" }, "'"]]},
+                "test" : { "Fn::Join" : ["", ["$(mysql ", { "Ref" : "DBName" }, " -u root --password='", { "Ref" : "DBRootPassword" }, "' >/dev/null 2>&1 </dev/null); (( $? != 0 ))"]]}
+              },
+              "02_create_database" : {
+                "command" : { "Fn::Join" : ["", ["mysql -u root --password='", { "Ref" : "DBRootPassword" }, "' < /tmp/setup.mysql"]]},
+                "test" : { "Fn::Join" : ["", ["$(mysql ", { "Ref" : "DBName" }, " -u root --password='", { "Ref" : "DBRootPassword" }, "' >/dev/null 2>&1 </dev/null); (( $? != 0 ))"]]}
+              },
+              "03_configure_wordpress" : {
+                "command" : "/tmp/create-wp-config",
+                "cwd" : "/var/www/html/wordpress"
+              }
+            }
+          },
+          "run_chef" : {
+            "commands" : {
+              "01_run_chef_client" : {
+                "command" : "chef-client -z -c /var/chef/chef-repo/.chef/client.rb",
+                "cwd" : "/var/chef/chef-repo",
+                "env" : { "HOME" : "/var/chef" }
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "ImageId" : { "Fn::FindInMap" : [ "AWSRegionArch2AMI", { "Ref" : "AWS::Region" },
+                          { "Fn::FindInMap" : [ "AWSInstanceType2Arch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+        "InstanceType"   : { "Ref" : "InstanceType" },
+        "SecurityGroups" : [ {"Ref" : "WebServerSecurityGroup"} ],
+        "KeyName"        : { "Ref" : "KeyName" },
+        "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                       "#!/bin/bash -xe\n",
+                       "yum update -y aws-cfn-bootstrap\n",
+
+                       "/opt/aws/bin/cfn-init -v ",
+                       "         --stack ", { "Ref" : "AWS::StackName" },
+                       "         --resource WebServer ",
+                       "         --configsets wordpress_install ",
+                       "         --region ", { "Ref" : "AWS::Region" }, "\n",
+
+                       "/opt/aws/bin/cfn-signal -e $? ",
+                       "         --stack ", { "Ref" : "AWS::StackName" },
+                       "         --resource WebServer ",
+                       "         --region ", { "Ref" : "AWS::Region" }, "\n"
+        ]]}}
+      },
+      "CreationPolicy" : {
+        "ResourceSignal" : {
+          "Timeout" : "PT15M"
+        }
+      }
+    }
+  },
+
+  "Outputs" : {
+          "VPCID" : { "Value" : { "Ref" : "VPCBase" } },
+    "ElasticIP1" : { "Value": { "Ref" : "EIPNATAZ1" } },
+    "SubnetPublicAZ1" : { "Value" : { "Ref" : "PublicNetAZ1"} },
+    "SubnetPrivateAZ1" : { "Value" : { "Ref" : "PrivateNetAZ1"} },
+    "DefaultSG" : { "Value" : { "Fn::GetAtt" : ["VPCBase", "DefaultSecurityGroup"] }},
+    "WebsiteURL" : {
+      "Value" : { "Fn::Join" : ["", ["http://", { "Fn::GetAtt" : [ "WebServer", "PublicDnsName" ]}, "/wordpress" ]]},
+      "Description" : "WordPress Website"
+    }
+  }
+}
